@@ -20,6 +20,23 @@ const client = new MongoClient(uri, {
     }
 });
 
+const verifyToken = (req, res, next) => {
+    if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'unAuthorized access', status: 401 });
+    }
+
+    const token = req.headers.authorization.split(' ')[1];
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ message: 'unAuthorized access', status: 401 });
+        }
+
+        req.decoded = decoded;
+        next()
+    })
+}
+
 async function run() {
     try {
         await client.connect();
@@ -33,7 +50,7 @@ async function run() {
             res.send({ token });
         })
 
-        app.get('/users', async (req, res) => {
+        app.get('/users', verifyToken, async (req, res) => {
             const result = await userCollection.find().toArray();
             res.send(result);
         })
@@ -49,6 +66,19 @@ async function run() {
             }
 
             const result = await userCollection.insertOne(user);
+            res.send(result);
+        })
+
+        app.patch('/users/admin/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    role: 'admin'
+                }
+            };
+
+            const result = await userCollection.updateOne(filter, updateDoc)
             res.send(result);
         })
 

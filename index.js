@@ -25,6 +25,32 @@ async function run() {
         await client.connect();
 
         const cartCollection = client.db('bistroDB').collection('carts');
+        const userCollection = client.db('bistroDB').collection('users');
+
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+            res.send({ token });
+        })
+
+        app.get('/users', async (req, res) => {
+            const result = await userCollection.find().toArray();
+            res.send(result);
+        })
+
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+
+            const query = { email: user.email };
+            const userExisting = await userCollection.findOne(query);
+
+            if (userExisting) {
+                return res.send({ message: "users is exist already", insertedId: null })
+            }
+
+            const result = await userCollection.insertOne(user);
+            res.send(result);
+        })
 
         app.get('/cart', async (req, res) => {
             let query = {}
@@ -38,6 +64,13 @@ async function run() {
         app.post('/cart', async (req, res) => {
             const food = req.body;
             const result = await cartCollection.insertOne(food);
+            res.send(result);
+        })
+
+        app.delete('/users/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.deleteOne(query);
             res.send(result);
         })
 

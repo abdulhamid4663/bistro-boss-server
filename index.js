@@ -210,17 +210,30 @@ async function run() {
             });
         })
 
+        app.get('/payments/:email', verifyToken, async (req, res) => {
+            const query = { email: req.params.email };
+
+            if (req.params.email !== req.decoded.email) {
+                return res.status(403).send({ message: 'Forbidden access', status: 403 })
+            };
+
+            const result = await paymentCollection.find(query).toArray();
+            res.send(result);
+        })
+
         app.post('/payments', async (req, res) => {
             const paymentInfo = req.body;
             const paymentInfoResult = await paymentCollection.insertOne(paymentInfo);
 
-            const query = {_id: {
-                $in: paymentInfo.cartIds.map(id => new ObjectId(id))
-            }};
+            const query = {
+                _id: {
+                    $in: paymentInfo.cartIds.map(id => new ObjectId(id))
+                }
+            };
 
             const deleteResult = await cartCollection.deleteMany(query);
 
-            res.send({paymentInfoResult, deleteResult});
+            res.send({ paymentInfoResult, deleteResult });
         })
 
 

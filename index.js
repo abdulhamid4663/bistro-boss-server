@@ -236,6 +236,68 @@ async function run() {
             res.send({ paymentInfoResult, deleteResult });
         })
 
+        // Stats related api
+        app.get('/admin-stats', async (req, res) => {
+            const users = await userCollection.estimatedDocumentCount();
+            const menus = await menuCollection.estimatedDocumentCount();
+            const orders = await paymentCollection.estimatedDocumentCount();
+            const result = await paymentCollection.aggregate([
+                {
+                    $group: {
+                        _id: null,
+                        totalRevenue: { $sum: '$price' }
+                    }
+                }
+            ]).toArray();
+
+            const totalRevenue = result.length > 0 ? result[0].totalRevenue : 0
+
+            res.send({ users, menus, orders, totalRevenue });
+        })
+
+        // Order stats related api
+        app.get('/order-stats', async (req, res) => {
+            const result = await paymentCollection.aggregate([
+                {
+                    $unwind: '$menuItemIds'
+                },
+                {
+                    $lookup: {
+                        from: "menus",
+                        let: { menuItemId: { $toObjectId: '$menuItemIds' } },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: { $eq: ['$_id', '$$menuItemId'] }
+                                }
+                            }
+                        ],
+                        as: 'menuItem'
+                    }
+                },
+                {
+                    $unwind: '$menuItem'
+                },
+                {
+                    $group: {
+                        _id: '$menuItem.category',
+                        quantity: { $sum: 1 },
+                        totalRevenue: { $sum: '$menuItem.price' }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        category: '$_id',
+                        quantity: '$quantity',
+                        totalRevenue: '$totalRevenue'
+                    }
+                }
+            ]).toArray();
+
+            res.send(result)
+        })
+
 
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
